@@ -143,6 +143,23 @@ describe("commit command", () => {
     expect(text).not.toContain("No context found for instance")
   })
 
+  test("CLI command uses original wrapper cwd by default", async () => {
+    await using tmp = await tmpdir({ git: true })
+    await Bun.write(path.join(tmp.path, "from-orig.txt"), "hello\n")
+
+    const result = await $`bun run --conditions=browser src/index.ts commit --dry-run`
+      .cwd(path.join(import.meta.dir, "../.."))
+      .env({ ...process.env, KILO_ORIG_CWD: tmp.path })
+      .quiet()
+      .nothrow()
+    const text = result.stdout.toString() + result.stderr.toString()
+
+    expect(result.exitCode).toBe(1)
+    expect(text).toContain("from-orig.txt")
+    expect(text).toContain("No staged changes found")
+    expect(text).not.toContain("No context found for instance")
+  })
+
   test("regenerates with previous message", async () => {
     await using tmp = await tmpdir({ git: true })
     await Bun.write(path.join(tmp.path, "file.txt"), "hello\n")

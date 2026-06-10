@@ -5,6 +5,7 @@ import { Effect } from "effect"
 import { effectCmd } from "../../../cli/effect-cmd"
 import { UI } from "../../../cli/ui"
 import { Config } from "../../../config/config"
+import { invocationDirectory } from "../invocation-directory"
 import { generateCommitMessage } from "../../commit-message"
 
 export type Status = {
@@ -142,12 +143,12 @@ async function edit(message: string) {
 }
 
 export async function handle(args: Args) {
-  const cwd = args.dir ? path.resolve(process.cwd(), args.dir) : process.cwd()
+  const root = invocationDirectory(args.dir)
   const run = args.git ?? git
   const out = args.output ?? ((text: string) => process.stdout.write(text + "\n"))
   const error = args.error ?? UI.error
   const exit = args.exit ?? ((code: number) => (process.exitCode = code))
-  const statusResult = run(["status", "--porcelain"], cwd)
+  const statusResult = run(["status", "--porcelain"], root)
   if (!check(statusResult, error, exit)) return
 
   let status = parseStatus(statusResult.stdout)
@@ -172,9 +173,9 @@ export async function handle(args: Args) {
       out("Cancelled")
       return
     }
-    const stageResult = run(stage === "all" ? ["add", "-A"] : ["add", "-u"], cwd)
+    const stageResult = run(stage === "all" ? ["add", "-A"] : ["add", "-u"], root)
     if (!check(stageResult, error, exit)) return
-    const next = run(["status", "--porcelain"], cwd)
+    const next = run(["status", "--porcelain"], root)
     if (!check(next, error, exit)) return
     status = parseStatus(next.stdout)
     if (status.staged.length === 0) {
@@ -188,7 +189,7 @@ export async function handle(args: Args) {
   let msg = args.message
   let prev = args.previous
   if (!msg) {
-    const result = await gen({ path: cwd, previousMessage: prev, prompt: args.prompt })
+    const result = await gen({ path: root, previousMessage: prev, prompt: args.prompt })
     msg = result.message
   }
   if (!msg) {
@@ -222,12 +223,12 @@ export async function handle(args: Args) {
     }
     if (action === "regenerate") {
       prev = msg
-      const result = await gen({ path: cwd, previousMessage: prev, prompt: args.prompt })
+      const result = await gen({ path: root, previousMessage: prev, prompt: args.prompt })
       msg = result.message
       continue
     }
 
-    const diff = run(["diff", "--cached", "--quiet"], cwd)
+    const diff = run(["diff", "--cached", "--quiet"], root)
     if (diff.code === 0) {
       error("No staged changes found")
       exit(1)
@@ -243,7 +244,7 @@ export async function handle(args: Args) {
       return
     }
 
-    const result = run(["commit", "-m", msg], cwd)
+    const result = run(["commit", "-m", msg], root)
     if (!check(result, error, exit)) return
     out(result.stdout.trim() || "Committed")
     return
@@ -253,7 +254,7 @@ export async function handle(args: Args) {
 export const CommitCommand = effectCmd<CliArgs, void>({
   command: "commit",
   describe: "generate a commit message and commit staged changes",
-  directory: (args) => (args.dir ? path.resolve(process.cwd(), args.dir) : process.cwd()),
+  directory: (args) => invocationDirectory(args.dir),
   builder: (yargs: Argv) =>
     yargs
       .option("dir", {
