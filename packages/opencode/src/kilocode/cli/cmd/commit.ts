@@ -43,7 +43,7 @@ type Args = {
   git?: (args: string[], cwd: string) => GitResult
   generate?: typeof generateCommitMessage
   analyzeIntent?: (input: { path: string; status: Status }) => Promise<IntentResult>
-  selectAction?: (message: string) => Promise<Action>
+  selectAction?: (message: string, intent?: Intent) => Promise<Action>
   selectPush?: () => Promise<PushAction>
   edit?: (message: string) => Promise<string | undefined>
   output?: (text: string) => void
@@ -146,9 +146,43 @@ async function selectPush(): Promise<PushAction> {
   return result as PushAction
 }
 
-async function selectAction(message: string): Promise<Action> {
+function section(title: string, body: string) {
+  return `${UI.Style.TEXT_WARNING_BOLD}${title}${UI.Style.TEXT_NORMAL}\n${body}`
+}
+
+function preview(message: string, intent?: Intent) {
+  const [subject = "", ...body] = message.trim().split("\n")
+  const parts = [
+    section(
+      "Commit message",
+      [`  ${UI.Style.TEXT_SUCCESS_BOLD}${subject}${UI.Style.TEXT_NORMAL}`, ...body.map((line) => `  ${UI.Style.TEXT_DIM}${line}${UI.Style.TEXT_NORMAL}`)].join("\n"),
+    ),
+  ]
+  if (intent) {
+    parts.push(
+      section(
+        "Files to commit",
+        intent.files.map((file) => `  ${UI.Style.TEXT_DIM}${file}${UI.Style.TEXT_NORMAL}`).join("\n"),
+      ),
+    )
+    parts.push(
+      section(
+        "Action",
+        [
+          `  ${UI.Style.TEXT_DIM}git reset${UI.Style.TEXT_NORMAL}`,
+          `  ${UI.Style.TEXT_DIM}git add ${intent.files.join(" ")}${UI.Style.TEXT_NORMAL}`,
+          `  ${UI.Style.TEXT_DIM}git commit -m <message>${UI.Style.TEXT_NORMAL}`,
+        ].join("\n"),
+      ),
+    )
+  }
+  return parts.join("\n\n")
+}
+
+async function selectAction(message: string, intent?: Intent): Promise<Action> {
+  prompts.note(preview(message, intent), "Commit preview")
   const result = await prompts.select({
-    message: `Generated commit message:\n\n${message}\n\nCommit with this message?`,
+    message: "Commit this change?",
     options: [
       { value: "commit", label: "Commit" },
       { value: "edit", label: "Edit" },
@@ -248,9 +282,9 @@ export async function handle(args: Args) {
         return
       }
 
-      out("Generated commit message:\n\n" + msg)
+      if (args.yes || args.dryRun) out("Generated commit message:\n\n" + msg)
 
-      const action = args.yes || args.dryRun ? "commit" : await (args.selectAction ?? selectAction)(msg)
+      const action = args.yes || args.dryRun ? "commit" : await (args.selectAction ?? selectAction)(msg, intent)
       if (action === "cancel") {
         out("Cancelled")
         return

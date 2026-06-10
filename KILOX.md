@@ -499,7 +499,7 @@ CLI 二进制中内置了一个 `kilo-config` skill（参见 `src/kilocode/skill
 
 ## 功能十一：交互式 Git 提交
 
-`kilox commit` 提供完整的交互式提交流程：展示 staged / unstaged / untracked 文件列表，基于 staged diff 生成 commit message，确认或编辑后执行 `git commit -m`。
+`kilox commit` 提供完整的交互式提交流程：展示 staged / unstaged / untracked 文件列表，分析变更是否属于同一提交意图，按意图用明确文件路径暂存相关文件，生成 commit message，确认或编辑后执行 `git commit -m`。
 
 ### 基本使用
 
@@ -510,34 +510,34 @@ kilox commit
 执行流程：
 
 1. 展示 staged、unstaged、untracked 文件列表。
-2. 如果没有 staged changes，提示选择 stage tracked changes、stage all changes 或 cancel。
-3. 使用配置中的 `small_model` 生成 Conventional Commits 风格的 commit message。
-4. 展示生成结果，允许选择 commit、edit、regenerate 或 cancel。
-5. 确认后执行 `git commit -m <message>`。
+2. 运行 `git diff` 和 `git diff --staged` 审查变更内容。
+3. 分析所有变更是否属于同一个提交意图；如果存在多个独立意图，按意图拆分为多个 commit。
+4. 对每个意图先执行 `git reset` 清理暂存区，再用 `git add <明确文件路径>` 暂存该意图相关文件。
+5. 使用 `commit_message.model`、`small_model` 或默认模型生成 Conventional Commits 风格的 commit message。
+6. 展示生成结果，允许选择 commit、edit、regenerate 或 cancel。
+7. 确认后执行 `git commit -m <message>`。
+8. 如果没有任何代码可提交，会询问是否执行 `git push`。
 
 ### 常用参数
 
 | 参数 | 说明 |
 |---|---|
-| `--all` | 无 staged changes 时执行 `git add -u`，只 stage tracked changes |
-| `--include-untracked` | 无 staged changes 时执行 `git add -A`，包含 untracked files |
+| `--all` | 兼容参数；当前提交流程会按意图分析并用明确文件路径暂存 |
+| `--include-untracked` | 兼容参数；untracked files 会参与意图分析，是否暂存取决于所属意图 |
 | `--message "fix: ..."` | 跳过 AI 生成，直接使用指定 commit message |
 | `--previous "..."` | 重新生成时避开指定的上一条 message |
-| `--yes` | 跳过确认，直接提交 |
-| `--dry-run` | 只展示生成结果，不执行 `git add` 或 `git commit` |
+| `--yes` | 跳过确认，自动同意提交或无变更时的 push |
+| `--dry-run` | 只展示生成结果，不执行 `git reset`、`git add` 或 `git commit` |
 | `--dir <path>` | 在指定目录中执行 |
 
 ### 示例
 
 ```bash
-# 已经手动 git add 后，生成并确认提交
+# 分析当前所有变更，按意图暂存并提交
 kilox commit
 
-# 没有 staged changes 时自动 stage tracked changes
-kilox commit --all
-
-# 没有 staged changes 时自动包含 untracked files
-kilox commit --include-untracked
+# 自动同意所有确认；无变更时自动执行 git push
+kilox commit --yes
 
 # 使用指定 message，跳过 AI 生成
 kilox commit --message "fix(cli): handle commit flow"
@@ -546,9 +546,34 @@ kilox commit --message "fix(cli): handle commit flow"
 kilox commit --dry-run
 ```
 
-### small_model 配置
+### commit_message 配置
 
-Commit message 生成会使用 Kilo 配置中的 `small_model`。建议配置便宜、快速的小模型：
+Commit message 生成支持项目或全局 Kilo 配置中的 `commit_message`：
+
+```jsonc
+{
+  "commit_message": {
+    "prompt": "使用中文生成简洁的 Conventional Commit message。",
+    "model": "kilo/kilo-auto/small"
+  }
+}
+```
+
+字段说明：
+
+| 字段 | 说明 |
+|---|---|
+| `commit_message.prompt` | 自定义 commit message 生成的 system prompt；设置后会替代默认 Conventional Commits prompt |
+| `commit_message.model` | 指定 commit message 生成模型，格式与顶层 `model` / `small_model` 相同，均为 `provider/model` |
+
+模型选择优先级：
+
+1. `commit_message.model`
+2. `small_model`
+3. 当前默认 provider 的可用小模型
+4. 默认模型
+
+如果只想全局配置便宜、快速的小模型，也可以继续使用顶层 `small_model`：
 
 ```json
 {
@@ -556,15 +581,14 @@ Commit message 生成会使用 Kilo 配置中的 `small_model`。建议配置便
 }
 ```
 
-如果未配置 `small_model`，会按当前默认 provider 自动选择可用的小模型；仍不可用时回退到默认模型。
-
 ### 安全行为
 
-- 默认只基于 staged diff 生成 commit message。
-- unstaged 和 untracked 文件默认只展示，不会静默提交。
-- `--all` 不包含 untracked files。
-- `--include-untracked` 才会包含 untracked files。
-- `--dry-run` 不执行 `git add` 或 `git commit`。
+- 每次提交前都会展示 staged、unstaged、untracked 文件列表，并运行 `git diff` / `git diff --staged`。
+- 不使用 `git add .`，也不使用交互式暂存命令。
+- 暂存时只使用 `git add <明确文件路径>`，并按分析出的提交意图暂存相关文件。
+- 多个独立意图会拆成多个 commit。
+- `--yes` 只自动确认命令判断，不会改变按意图拆分和明确暂存文件的规则。
+- `--dry-run` 不执行 `git reset`、`git add` 或 `git commit`。
 
 相关代码：
 - `src/kilocode/cli/cmd/commit.ts` - 交互式提交命令
