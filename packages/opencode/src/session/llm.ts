@@ -51,6 +51,13 @@ import * as OtelTracer from "@effect/opentelemetry/Tracer"
 
 const log = Log.create({ service: "llm" })
 export const OUTPUT_TOKEN_MAX = ProviderTransform.OUTPUT_TOKEN_MAX
+export const invalidToolRepair = (toolName: string, message: string) => ({
+  input: JSON.stringify({
+    tool: toolName,
+    error: message,
+  }),
+  toolName: "invalid" as const,
+})
 type Result = Awaited<ReturnType<typeof streamText>>
 type StreamResult = { fullStream: AsyncIterable<Event> }
 
@@ -449,18 +456,14 @@ const live: Layer.Layer<
           }
           return {
             ...failed.toolCall,
-            input: JSON.stringify({
-              tool: failed.toolCall.toolName,
-              error: failed.error.message,
-            }),
-            toolName: "invalid",
+            ...invalidToolRepair(failed.toolCall.toolName, failed.error.message),
           }
         },
         temperature: params.temperature,
         topP: params.topP,
         topK: params.topK,
         providerOptions: ProviderTransform.providerOptions(input.model, params.options),
-        activeTools: Object.keys(sortedTools).filter((x) => x !== "invalid"),
+        activeTools: Object.keys(sortedTools),
         tools: sortedTools,
         toolChoice: input.toolChoice,
         maxOutputTokens: params.maxOutputTokens,

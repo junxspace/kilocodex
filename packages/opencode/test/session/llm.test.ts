@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test"
 import path from "path"
 import { tool, type ModelMessage } from "ai"
-import { Cause, Effect, Exit, Stream } from "effect"
+import { Cause, Effect, Exit, Schema, Stream } from "effect"
 import z from "zod"
 import { makeRuntime } from "../../src/effect/run-service"
-import { LLM } from "../../src/session/llm"
+import { LLM, invalidToolRepair } from "../../src/session/llm"
 import { Instance } from "../../src/project/instance"
 import { WithInstance } from "../../src/project/with-instance"
 import { Provider } from "@/provider/provider"
@@ -15,6 +15,7 @@ import { Filesystem } from "@/util/filesystem"
 import { tmpdir } from "../fixture/fixture"
 import type { Agent } from "../../src/agent/agent"
 import { MessageV2 } from "../../src/session/message-v2"
+import { Parameters as InvalidParameters } from "../../src/tool/invalid"
 import { SessionID, MessageID } from "../../src/session/schema"
 import { AppRuntime } from "../../src/effect/app-runtime"
 
@@ -32,6 +33,17 @@ const llm = makeRuntime(LLM.Service, LLM.defaultLayer)
 async function drain(input: LLM.StreamInput) {
   return llm.runPromise((svc) => svc.stream(input).pipe(Stream.runDrain))
 }
+
+describe("session.llm.invalidToolRepair", () => {
+  test("repairs tool call with JSON input matching invalid tool schema", () => {
+    const repaired = invalidToolRepair("Read", "File path does not exist")
+    expect(repaired.toolName).toBe("invalid")
+    const input = JSON.parse(repaired.input)
+    const parsed = Schema.decodeUnknownSync(InvalidParameters)(input)
+    expect(parsed.tool).toBe("Read")
+    expect(parsed.error).toBe("File path does not exist")
+  })
+})
 
 describe("session.llm.hasToolCalls", () => {
   test("returns false for empty messages array", () => {
