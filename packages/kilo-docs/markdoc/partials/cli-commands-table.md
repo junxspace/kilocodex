@@ -24,6 +24,7 @@
 | `kilo remote` | enable remote connection for real-time session relay |
 | `kilo daemon` | manage the local kilo daemon |
 | `kilo console` | open the local Kilo Console |
+| `kilo commit` | generate a commit message and commit staged changes |
 | `kilo db` | database tools |
 | `kilo config` | configuration tools |
 | `kilo plugin <module>` | install plugin and update config |

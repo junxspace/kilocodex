@@ -19,6 +19,7 @@ git clone <repo-url> && cd kilocodex
 |---|---|
 | `kilox` | 启动 TUI |
 | `kilox run "message"` | 非交互模式执行任务 |
+| `kilox commit` | 交互式生成 commit message 并提交 |
 | `kilox serve` | 启动 HTTP 服务 |
 | `kilox --version` | 查看版本 |
 | `kilox --help` | 查看帮助 |
@@ -496,13 +497,79 @@ CLI 二进制中内置了一个 `kilo-config` skill（参见 `src/kilocode/skill
 
 ---
 
-## 功能十一：提交信息生成
+## 功能十一：交互式 Git 提交
 
-`commit-message` 模块基于当前 `git diff --staged` 上下文调用 LLM 生成 Conventional Commits 风格的提交信息。可被 VS Code 扩展或 SDK 调用，CLI 内部亦作为辅助工具暴露。
+`kilox commit` 提供完整的交互式提交流程：展示 staged / unstaged / untracked 文件列表，基于 staged diff 生成 commit message，确认或编辑后执行 `git commit -m`。
+
+### 基本使用
+
+```bash
+kilox commit
+```
+
+执行流程：
+
+1. 展示 staged、unstaged、untracked 文件列表。
+2. 如果没有 staged changes，提示选择 stage tracked changes、stage all changes 或 cancel。
+3. 使用配置中的 `small_model` 生成 Conventional Commits 风格的 commit message。
+4. 展示生成结果，允许选择 commit、edit、regenerate 或 cancel。
+5. 确认后执行 `git commit -m <message>`。
+
+### 常用参数
+
+| 参数 | 说明 |
+|---|---|
+| `--all` | 无 staged changes 时执行 `git add -u`，只 stage tracked changes |
+| `--include-untracked` | 无 staged changes 时执行 `git add -A`，包含 untracked files |
+| `--message "fix: ..."` | 跳过 AI 生成，直接使用指定 commit message |
+| `--previous "..."` | 重新生成时避开指定的上一条 message |
+| `--yes` | 跳过确认，直接提交 |
+| `--dry-run` | 只展示生成结果，不执行 `git add` 或 `git commit` |
+| `--dir <path>` | 在指定目录中执行 |
+
+### 示例
+
+```bash
+# 已经手动 git add 后，生成并确认提交
+kilox commit
+
+# 没有 staged changes 时自动 stage tracked changes
+kilox commit --all
+
+# 没有 staged changes 时自动包含 untracked files
+kilox commit --include-untracked
+
+# 使用指定 message，跳过 AI 生成
+kilox commit --message "fix(cli): handle commit flow"
+
+# 预览生成结果，不修改 Git 状态
+kilox commit --dry-run
+```
+
+### small_model 配置
+
+Commit message 生成会使用 Kilo 配置中的 `small_model`。建议配置便宜、快速的小模型：
+
+```json
+{
+  "small_model": "kilo/kilo-auto/small"
+}
+```
+
+如果未配置 `small_model`，会按当前默认 provider 自动选择可用的小模型；仍不可用时回退到默认模型。
+
+### 安全行为
+
+- 默认只基于 staged diff 生成 commit message。
+- unstaged 和 untracked 文件默认只展示，不会静默提交。
+- `--all` 不包含 untracked files。
+- `--include-untracked` 才会包含 untracked files。
+- `--dry-run` 不执行 `git add` 或 `git commit`。
 
 相关代码：
-- `src/kilocode/commit-message/generate.ts` - 主流程
-- `src/kilocode/commit-message/git-context.ts` - 上下文采集
+- `src/kilocode/cli/cmd/commit.ts` - 交互式提交命令
+- `src/kilocode/commit-message/generate.ts` - commit message 生成主流程
+- `src/kilocode/commit-message/git-context.ts` - Git 上下文采集
 
 ---
 

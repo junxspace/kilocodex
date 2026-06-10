@@ -906,6 +906,23 @@ Options:
   --cors         additional domains to allow for CORS  [array] [default: []]
 ```
 
+## kilo commit
+
+```
+generate a commit message and commit staged changes
+
+Options:
+  --help               Show help  [boolean]
+  --version            Show version number  [boolean]
+  --dir                directory to run in  [string]
+  --all                stage tracked changes when nothing is staged  [boolean]
+  --include-untracked  stage all changes, including untracked files, when nothing is staged  [boolean]
+  --message            commit with this message instead of generating one  [string]
+  --previous           previous generated message to avoid when regenerating  [string]
+  --yes                commit without confirmation  [boolean]
+  --dry-run            show message without creating a commit  [boolean]
+```
+
 ## kilo db
 
 ```

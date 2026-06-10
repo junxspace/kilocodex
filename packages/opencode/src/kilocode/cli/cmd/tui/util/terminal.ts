@@ -1,4 +1,17 @@
+import { dlopen } from "bun:ffi"
 import fs from "node:fs"
+
+const TCIFLUSH = 0
+const lib = () =>
+  dlopen(process.platform === "darwin" ? "libSystem.B.dylib" : "libc.so.6", {
+    tcflush: { args: ["i32", "i32"], returns: "i32" },
+  })
+
+type Flush = ReturnType<typeof lib>
+type Input = { isTTY?: boolean; fd: number }
+type Tcflush = (fd: number, queue: number) => number
+
+let handle: Flush | undefined
 
 /**
  * Write escape sequences to disable terminal input modes and reset terminal state.
@@ -47,9 +60,25 @@ export function sequences() {
   ]
 }
 
+export function flushTerminalInput(input: Input = process.stdin, flush?: Tcflush) {
+  if (process.platform !== "darwin" && process.platform !== "linux") return
+  if (!input.isTTY) return
+
+  try {
+    const tcflush = flush ?? (() => {
+      handle ??= lib()
+      return handle.symbols.tcflush
+    })()
+    tcflush(input.fd, TCIFLUSH)
+  } catch (err) {
+    console.error("flushTerminalInput failed", err)
+  }
+}
+
 export function resetTerminalState() {
   try {
     fs.writeSync(process.stdout.fd, sequences().join(""))
+    flushTerminalInput()
   } catch (err) {
     console.error("resetTerminalState failed", err)
   }

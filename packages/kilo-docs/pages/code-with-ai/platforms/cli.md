@@ -442,6 +442,34 @@ Selecting an "Always run" option will:
 
 Kilo only saves the pattern you select. Approving a specific command does not approve redirected variants or broader command patterns unless that broader option is shown and selected.
 
+## Interactive Git Commits
+
+Use `kilo commit` to generate and commit with an AI-written Git commit message:
+
+```bash
+kilo commit
+```
+
+The command shows staged, unstaged, and untracked files, then generates a message from the staged diff. You can commit, edit, regenerate, or cancel before `git commit` runs. If nothing is staged, Kilo asks whether to stage tracked changes, stage all changes including untracked files, or cancel.
+
+Commit message generation uses your configured `small_model` when available. Add one to your project config for faster, lower-cost commit messages:
+
+```json
+{
+  "small_model": "kilo/kilo-auto/small"
+}
+```
+
+Useful options:
+
+| Option | Behavior |
+|---|---|
+| `--all` | Stage tracked changes when nothing is staged. |
+| `--include-untracked` | Stage all changes, including untracked files, when nothing is staged. |
+| `--message "..."` | Use a specific commit message instead of generating one. |
+| `--yes` | Commit without confirmation. |
+| `--dry-run` | Show the generated message without creating a commit. |
+
 ## Autonomous Mode (Non-Interactive)
 
 Autonomous mode allows Kilo Code to run in automated environments like CI/CD pipelines without requiring user interaction.

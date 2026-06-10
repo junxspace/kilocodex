@@ -73,7 +73,7 @@ You can also set it directly in the project config:
 ```
 
 {% callout type="info" %}
-Git commit message generation is a **VS Code extension feature**. It is not available in the CLI/TUI.
+The CLI also supports an interactive commit flow with `kilo commit`. It shows staged, unstaged, and untracked files, generates a commit message with the configured `small_model`, lets you confirm, edit, or regenerate it, then runs `git commit`.
 {% /callout %}
 
 {% /tab %}

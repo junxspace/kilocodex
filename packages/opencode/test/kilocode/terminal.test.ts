@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test"
-import { kitty, sequences } from "../../src/kilocode/cli/cmd/tui/util/terminal"
+import { flushTerminalInput, kitty, sequences } from "../../src/kilocode/cli/cmd/tui/util/terminal"
 
 const keys = ["TERM_PROGRAM", "MSYSTEM", "KILO_DISABLE_KITTY_KEYBOARD", "KILO_ENABLE_KITTY_KEYBOARD"] as const
 type Key = (typeof keys)[number]
@@ -91,4 +91,15 @@ test("resets common terminal input modes", () => {
       "\x1b[0m",
     ]),
   )
+})
+
+test("flushes queued terminal input", () => {
+  const calls: [number, number][] = []
+
+  flushTerminalInput({ isTTY: true, fd: 42 }, (fd, queue) => {
+    calls.push([fd, queue])
+    return 0
+  })
+
+  expect(calls).toEqual([[42, 0]])
 })
