@@ -18,6 +18,7 @@ import { createKiloClient } from "@kilocode/sdk/v2" // kilocode_change
 import { writeHeapSnapshot } from "v8"
 import { TuiConfig } from "./config/tui"
 import { KiloTuiThreadDaemon } from "@/kilocode/cli/cmd/tui/thread" // kilocode_change
+import { resetTerminalState } from "@/kilocode/cli/cmd/tui/util/terminal" // kilocode_change
 import {
   KILO_PROCESS_ROLE,
   KILO_RUN_ID,
@@ -84,8 +85,9 @@ async function input(value?: string) {
 }
 
 export function resolveThreadDirectory(project?: string, envPWD = process.env.PWD, cwd = process.cwd()) {
-  // kilocode_change start - ignore stale PWD from wrappers such as `bun --cwd`
-  const real = Filesystem.resolve(cwd)
+  // kilocode_change start - prefer KILO_ORIG_CWD over process.cwd() for dev wrapper
+  const orig = process.env.KILO_ORIG_CWD
+  const real = Filesystem.resolve(orig && !project ? orig : cwd)
   const root = envPWD && Filesystem.resolve(envPWD) === real ? Filesystem.resolve(envPWD) : real
   // kilocode_change end
   if (project) return Filesystem.resolve(path.isAbsolute(project) ? project : path.join(root, project))
@@ -247,6 +249,7 @@ export const TuiThreadCommand = cmd({
           })
           .finally(() => {
             unguard?.()
+            resetTerminalState() // kilocode_change - ensure mouse tracking is disabled before exit
             process.exit(input.code)
           })
       }
@@ -375,6 +378,7 @@ export const TuiThreadCommand = cmd({
       unguard?.()
     }
     if (shutdown.exiting) return
+    resetTerminalState() // kilocode_change - ensure mouse tracking is disabled before exit
     process.exit(0)
   },
 })

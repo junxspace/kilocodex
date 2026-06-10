@@ -22,7 +22,7 @@ export function SessionIndexing() {
   const label = createMemo(() => formatIndexingLabel(indexing()))
 
   return (
-    <Show when={enabled()}>
+    <Show when={enabled() && label()}>
       <box flexShrink={0} flexDirection="row" paddingLeft={2} paddingRight={2}>
         <text fg={tone(indexing().state, theme)}>{label().slice(0, 48)}</text>
       </box>

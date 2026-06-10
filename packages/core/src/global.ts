@@ -1,5 +1,5 @@
 import path from "path"
-import fs from "fs/promises"
+import { existsSync } from "fs"
 import { xdgData, xdgCache, xdgConfig, xdgState } from "xdg-basedir"
 import os from "os"
 import { Context, Effect, Layer } from "effect"
@@ -8,7 +8,7 @@ import { markNoIndex } from "./kilocode/spotlight" // kilocode_change
 import { ensureRealDir } from "./kilocode/global" // kilocode_change
 import { Flag } from "./flag/flag"
 
-const app = "kilo" // kilocode_change
+const app = "kilox" // kilocode_change
 // kilocode_change start
 // Defensively strip newline characters from the resolved XDG paths.
 // If `$HOME` (or any `$XDG_*_HOME` override) has a trailing newline in
@@ -18,10 +18,19 @@ const app = "kilo" // kilocode_change
 // which breaks every `kilo` invocation at startup (including the SDK
 // regen that runs during `bun run extension`).
 const clean = (p: string | undefined) => p?.replace(/[\r\n]+/g, "")
-const data = path.join(clean(xdgData)!, app)
-const cache = path.join(clean(xdgCache)!, app)
-const config = path.join(clean(xdgConfig)!, app)
-const state = path.join(clean(xdgState)!, app)
+const root = (base: string | undefined) => clean(base)!
+const legacy = (base: string | undefined) => path.join(root(base), "kilo")
+const owned = (base: string | undefined) => path.join(root(base), app)
+const configRoot = (() => {
+  const dir = owned(xdgConfig)
+  if (existsSync(dir)) return dir
+  return legacy(xdgConfig)
+})()
+const data = legacy(xdgData)
+const cache = owned(xdgCache)
+const config = configRoot
+const state = legacy(xdgState)
+const log = path.join(owned(xdgData), "log")
 // kilocode_change end
 const tmp = path.join(os.tmpdir(), app)
 
@@ -31,7 +40,7 @@ const paths = {
   },
   data,
   bin: path.join(cache, "bin"),
-  log: path.join(data, "log"),
+  log,
   repos: path.join(data, "repos"),
   cache,
   config,

@@ -4,6 +4,8 @@ import { effectCmd } from "../effect-cmd"
 import { withNetworkOptions, resolveNetworkOptions } from "../network"
 import { Flag } from "@opencode-ai/core/flag/flag"
 import { InstanceRuntime } from "../../project/instance-runtime" // kilocode_change
+import * as Log from "@opencode-ai/core/util/log" // kilocode_change
+import { Global } from "@opencode-ai/core/global" // kilocode_change
 
 export const ServeCommand = effectCmd({
   command: "serve",
@@ -19,6 +21,22 @@ export const ServeCommand = effectCmd({
     const opts = yield* resolveNetworkOptions(args)
     const server = yield* Effect.promise(() => Server.listen(opts))
     console.log(`kilo server listening on http://${server.hostname}:${server.port}`) // kilocode_change
+
+    // kilocode_change start - log kilox runtime paths and setup notification in daemon/serve process
+    Log.Default.info("kilox runtime", {
+      app: "kilox",
+      binary: "kilox",
+      pid: process.pid,
+      dataPath: Global.Path.data,
+      configPath: Global.Path.config,
+      logPath: Global.Path.log,
+      cachePath: Global.Path.cache,
+      statePath: Global.Path.state,
+    })
+
+    const { setupNotification } = yield* Effect.promise(() => import("@/kilocode/notification"))
+    yield* Effect.promise(() => setupNotification())
+    // kilocode_change end
 
     // kilocode_change start - graceful signal shutdown
     // yield* Effect.never

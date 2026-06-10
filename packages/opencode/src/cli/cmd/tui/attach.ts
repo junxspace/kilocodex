@@ -7,6 +7,7 @@ import { importCloudSession, validateCloudFork } from "@/kilocode/cloud-session"
 import { errorMessage } from "@/util/error"
 import { validateSession } from "./validate-session"
 import { ServerAuth } from "@/server/auth"
+import { resetTerminalState } from "@/kilocode/cli/cmd/tui/util/terminal" // kilocode_change
 
 export const AttachCommand = cmd({
   command: "attach <url>",
@@ -127,6 +128,7 @@ export const AttachCommand = cmd({
         headers,
       })
     } finally {
+      resetTerminalState() // kilocode_change - ensure mouse tracking is disabled before exit
       unguard?.()
     }
   },

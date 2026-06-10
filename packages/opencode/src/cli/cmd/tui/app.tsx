@@ -997,10 +997,12 @@ function ErrorComponent(props: {
   const handleExit = async () => {
     await props.onBeforeExit?.()
     renderer?.setTerminalTitle("")
+    // kilocode_change start - disable mouse tracking BEFORE renderer.destroy() to prevent
+    // mouse events from being echoed to the terminal as garbled characters
+    resetTerminalState()
     renderer?.destroy()
     win32FlushInputBuffer()
-    // kilocode_change - reset terminal state to disable mouse tracking on exit
-    resetTerminalState()
+    // kilocode_change end
     await props.onExit()
   }
 

@@ -2,34 +2,19 @@
 const yes = new Set(["1", "true", "yes", "on"])
 const no = new Set(["0", "false", "no", "off"])
 
-const modern = {
-  tui: [
-    `██  ██ ██🬺🬏   ██  ██   ██🬺🬏     ████ ██     ██🬺🬏   `,
-    `████🬺🬏 ~~██   ██  ~~ ██~~██   ██~~~~ ██     ~~██   `,
-    `██  ██ ██████ 🬁🬬████ 🬁🬬██~~   🬁🬬████ 🬁🬬████ ██████ `,
-    `~~  ~~ ~~~~~~   ~~~~   ~~       ~~~~   ~~~~ ~~~~~~ `,
-  ],
-  plain: [
-    `██  ██ ██🬺🬏   ██  ██   ██🬺🬏     ████ ██     ██🬺🬏   `,
-    `████🬺🬏   ██   ██     ██  ██   ██     ██       ██   `,
-    `██  ██ ██████ 🬁🬬████ 🬁🬬██     🬁🬬████ 🬁🬬████ ██████ `,
-  ],
-  exit: [`  ██  ██ ██🬺🬏   ██  ██   ██🬺🬏  `, `  ████🬺🬏   ██   ██     ██  ██  `, `  ██  ██ ██████ 🬁🬬████ 🬁🬬██    `],
-}
+const LOGO_LINES = [
+  "▗▖ ▗▖▗▄▄▄▖▗▖    ▗▄▖ ▗▖  ▗▖",
+  "▐▌▗▞▘  █  ▐▌   ▐▌ ▐▌ ▝▚▞▘ ",
+  "▐▛▚▖   █  ▐▌   ▐▌ ▐▌  ▐▌  ",
+  "▐▌ ▐▌▗▄█▄▖▐▙▄▄▖▝▚▄▞▘▗▞▘▝▚▖",
+  "                          ",
+  "                          ",
+]
 
-const fallback = {
-  tui: [
-    `██  ██ ████   ██  ██   ██       ████ ██     ████   `,
-    `████   ~~██   ██  ~~ ██~~██   ██~~~~ ██     ~~██   `,
-    `██  ██ ██████ ██████   ██~~     ████   ████ ██████ `,
-    `~~  ~~ ~~~~~~  ~~~~~   ~~       ~~~~   ~~~~ ~~~~~~ `,
-  ],
-  plain: [
-    `██  ██ ████   ██  ██   ███      ████ ██     ████   `,
-    `████     ██   ██     ██  ██   ██     ██       ██   `,
-    `██  ██ ██████ ██████   ██       ████ ██████ ██████ `,
-  ],
-  exit: [`  ██  ██ ████   ██  ██   ██    `, `  ████     ██   ██     ██  ██  `, `  ██  ██ ██████ ██████   ██    `],
+const LOGO = {
+  tui: LOGO_LINES,
+  plain: LOGO_LINES,
+  exit: LOGO_LINES,
 }
 
 function flag(value: string | undefined) {
@@ -51,7 +36,6 @@ export function supports(env = process.env, platform = process.platform) {
   const override = flag(env.KILO_UNICODE_LOGO)
   if (override !== undefined) return override
   if (env.TERM === "dumb") return false
-  // Old Windows Console Host cannot render the sextant glyphs used by the modern logo.
   if (platform === "win32") return windows(env)
   if (env.ConEmuPID) return false
   if (env.ANSICON) return false
@@ -59,11 +43,11 @@ export function supports(env = process.env, platform = process.platform) {
 }
 
 export function tui(env = process.env, platform = process.platform) {
-  return supports(env, platform) ? modern.tui : fallback.tui
+  return supports(env, platform) ? LOGO.tui : LOGO.plain
 }
 
 export function plain(env = process.env, platform = process.platform) {
-  return supports(env, platform) ? modern.plain : fallback.plain
+  return supports(env, platform) ? LOGO.plain : LOGO.plain
 }
 
 export function session(
@@ -74,6 +58,7 @@ export function session(
   env = process.env,
   platform = process.platform,
 ) {
-  const logo = supports(env, platform) ? modern.exit : fallback.exit
-  return [``, `${logo[0]}${dim}${title}${normal}`, `${logo[1]}${dim}kilo -s ${id}${normal}`, logo[2]].join("\n")
+  const lines = supports(env, platform) ? LOGO.exit : LOGO.plain
+  const info = id ? `${dim}${title}${normal}  ·  ${dim}kilox -s ${id}${normal}` : `${dim}${title}${normal}`
+  return [``, ...lines, info, ""].join("\n")
 }

@@ -1,6 +1,8 @@
-import { Client } from "./client.js"
+import { Client, type CaptureHandler } from "./client.js"
 import { Identity } from "./identity.js"
 import { TelemetryEvent } from "./events.js"
+
+export type { CaptureHandler }
 
 export interface TelemetryProperties {
   appName: string
@@ -91,6 +93,10 @@ export namespace Telemetry {
 
   export function setEnabled(value: boolean) {
     Client.setEnabled(value)
+  }
+
+  export function setCaptureHandler(handler: CaptureHandler | null) {
+    Client.setCaptureHandler(handler)
   }
 
   export function isEnabled(): boolean {

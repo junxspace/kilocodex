@@ -1,6 +1,8 @@
 import type { IndexingStatus } from "@kilocode/kilo-indexing/status"
 
 export function formatIndexingLabel(status: IndexingStatus): string {
+  if (status.state === "Disabled") return ""
+
   if (status.state === "In Progress") {
     if (status.totalFiles <= 0) return "IDX In Progress"
     return `IDX ${status.percent}% ${status.processedFiles}/${status.totalFiles}`

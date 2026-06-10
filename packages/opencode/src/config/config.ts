@@ -376,6 +376,53 @@ export const Info = Schema.Struct({
       }),
     }),
   ),
+  // kilocode_change start - notification config for kilox
+  notification: Schema.optional(
+    Schema.Struct({
+      enabled: Schema.optional(Schema.Boolean).annotate({
+        description: "Enable task completion notifications",
+      }),
+      notify_action: Schema.optional(Schema.Literal("webhook")).annotate({
+        description: "Notification delivery action. Currently only webhook is supported",
+      }),
+      webhookUrl: Schema.optional(Schema.String).annotate({
+        description: "Webhook URL for sending notifications (e.g. Feishu bot webhook)",
+      }),
+      enabled_events: Schema.optional(
+        Schema.mutable(
+          Schema.Array(
+            Schema.Literals([
+              "task_completed",
+              "task_error",
+              "task_interrupted",
+              "permission_required",
+              "question_required",
+              "session_error",
+            ]),
+          ),
+        ),
+      ).annotate({
+        description: "Notification events to enable. Defaults to all supported non-interrupted events",
+      }),
+      disabled_events: Schema.optional(
+        Schema.mutable(
+          Schema.Array(
+            Schema.Literals([
+              "task_completed",
+              "task_error",
+              "task_interrupted",
+              "permission_required",
+              "question_required",
+              "session_error",
+            ]),
+          ),
+        ),
+      ).annotate({
+        description: "Notification events to disable. Takes precedence over enabled_events",
+      }),
+    }),
+  ),
+  // kilocode_change end
 })
   .annotate({ identifier: "Config" })
   .pipe(
@@ -422,7 +469,7 @@ export class Service extends Context.Service<Service, Interface>()("@opencode/Co
 
 function globalConfigFile() {
   // kilocode_change start
-  const candidates = ["kilo.jsonc", "kilo.json", "opencode.jsonc", "opencode.json", "config.json"].map((file) =>
+  const candidates = ["kilox.jsonc", "kilox.json", "kilo.jsonc", "kilo.json", "opencode.jsonc", "opencode.json", "config.json"].map((file) =>
     // kilocode_change end
     path.join(Global.Path.config, file),
   )
@@ -536,9 +583,11 @@ export const layer = Layer.effect(
       globalStamp = yield* KilocodeGlobalConfigStamp.read(fs, Global.Path.config) // kilocode_change
       let result: Info = {}
       result = mergeConfig(result, yield* loadFile(path.join(Global.Path.config, "config.json")))
-      // kilocode_change start
       result = mergeConfig(result, yield* loadFile(path.join(Global.Path.config, "kilo.json")))
       result = mergeConfig(result, yield* loadFile(path.join(Global.Path.config, "kilo.jsonc")))
+      // kilocode_change start - kilox config overrides kilo config
+      result = mergeConfig(result, yield* loadFile(path.join(Global.Path.config, "kilox.json")))
+      result = mergeConfig(result, yield* loadFile(path.join(Global.Path.config, "kilox.jsonc")))
       // kilocode_change end
       result = mergeConfig(result, yield* loadFile(path.join(Global.Path.config, "opencode.json")))
       result = mergeConfig(result, yield* loadFile(path.join(Global.Path.config, "opencode.jsonc")))
@@ -764,7 +813,7 @@ export const layer = Layer.effect(
 
         if (!Flag.KILO_DISABLE_PROJECT_CONFIG) {
           // kilocode_change start - also discover kilo.json project files
-          for (const name of ["kilo", "opencode"] as const) {
+          for (const name of ["kilox", "kilo", "opencode"] as const) {
             for (const file of yield* ConfigPaths.files(name, ctx.directory, ctx.project.worktree).pipe(Effect.orDie)) {
               yield* merge(
                 file,

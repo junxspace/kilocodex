@@ -824,13 +824,20 @@ export const layer: Layer.Layer<
         slog.info("process")
         ctx.needsCompaction = false
         ctx.compactionError = undefined // kilocode_change
-        ctx.shouldBreak = (yield* config.get()).experimental?.continue_loop_on_deny !== true
+        const cfg = yield* config.get() // kilocode_change - reuse one resolved config snapshot below
+        ctx.shouldBreak = cfg.experimental?.continue_loop_on_deny !== true
 
         return yield* Effect.gen(function* () {
           yield* Effect.gen(function* () {
             ctx.currentText = undefined
             ctx.reasoningMap = {}
             ctx.step = { reasoning: false, text: false, tool: false } // kilocode_change
+            // kilocode_change start - inject provider retry config into AI SDK maxRetries
+            const providerOpts = cfg.provider?.[input.model.providerID]?.options as any
+            if (providerOpts?.retries !== undefined && streamInput.retries === undefined) {
+              streamInput.retries = providerOpts.retries
+            }
+            // kilocode_change end
             const stream = llm.stream(streamInput)
 
             yield* stream.pipe(
@@ -857,7 +864,13 @@ export const layer: Layer.Layer<
                 provider: input.model.providerID,
                 parse,
                 // kilocode_change start
-                ...KiloSessionProcessor.retryOpts({ sessionID: ctx.sessionID, abort: ac.signal, set: status.set }),
+                ...KiloSessionProcessor.retryOpts({
+                  sessionID: ctx.sessionID,
+                  abort: ac.signal,
+                  set: status.set,
+                  retries: (cfg.provider?.[input.model.providerID]?.options as any)?.retries,
+                  retryDelay: (cfg.provider?.[input.model.providerID]?.options as any)?.retryDelay,
+                }),
                 // kilocode_change end
                 set: (info) => {
                   // TODO(v2): Temporary dual-write while migrating session messages to v2 events.

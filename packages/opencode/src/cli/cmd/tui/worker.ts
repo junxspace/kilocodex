@@ -14,6 +14,7 @@ import { AppRuntime } from "@/effect/app-runtime"
 import { ensureProcessMetadata } from "@opencode-ai/core/util/opencode-process"
 import { Effect } from "effect"
 import { disposeAllInstancesAndEmitGlobalDisposed } from "@/server/global-lifecycle"
+import { Global } from "@opencode-ai/core/global" // kilocode_change
 
 ensureProcessMetadata("worker")
 
@@ -27,6 +28,19 @@ await Log.init({
 })
 
 Heap.start()
+
+// kilocode_change start
+Log.Default.info("kilox runtime", {
+  app: "kilox",
+  binary: "kilox",
+  pid: process.pid,
+  dataPath: Global.Path.data,
+  configPath: Global.Path.config,
+  logPath: Global.Path.log,
+  cachePath: Global.Path.cache,
+  statePath: Global.Path.state,
+})
+// kilocode_change end
 
 process.on("unhandledRejection", (e) => {
   Log.Default.error("rejection", {
@@ -44,6 +58,11 @@ process.on("uncaughtException", (e) => {
 GlobalBus.on("event", (event) => {
   Rpc.emit("global.event", event)
 })
+
+// kilocode_change start
+import { setupNotification } from "@/kilocode/notification"
+await setupNotification()
+// kilocode_change end
 
 let server: Awaited<ReturnType<typeof Server.listen>> | undefined
 

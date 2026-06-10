@@ -4,7 +4,9 @@ declare global {
   const KILO_BUILD_KIND: string // kilocode_change
 }
 
-export const InstallationVersion = typeof KILO_VERSION === "string" ? KILO_VERSION : "local"
+export const InstallationVersion = typeof KILO_VERSION === "string" ? KILO_VERSION : "dev"
+// kilocode_change - mark dev/source builds as "local" when no channel is injected at build time,
+// so the rest of the codebase can still detect non-release runs (skip auto-update, etc.).
 export const InstallationChannel = typeof KILO_CHANNEL === "string" ? KILO_CHANNEL : "local"
 export const InstallationLocal = InstallationChannel === "local"
 // kilocode_change start - distinguish release builds from source / local builds

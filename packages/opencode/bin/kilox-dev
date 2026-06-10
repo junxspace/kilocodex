@@ -1,0 +1,3 @@
+#!/bin/bash
+export KILO_ORIG_CWD="$(pwd)"
+cd /Users/junx/Workspace/opensource/kilocodex/packages/opencode && bun run --conditions=browser ./src/index.ts "$@"

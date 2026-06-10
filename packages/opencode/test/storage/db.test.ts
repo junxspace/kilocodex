@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import path from "path"
 import { Flag } from "@opencode-ai/core/flag/flag" // kilocode_change
 import { Global } from "@opencode-ai/core/global"
-import { InstallationChannel } from "@opencode-ai/core/installation/version"
+import { xdgData } from "xdg-basedir" // kilocode_change
 import { Database } from "@/storage/db"
 
 describe("Database.Path", () => {
@@ -17,9 +17,9 @@ describe("Database.Path", () => {
       return
     }
     // kilocode_change end
-    const expected = ["latest", "beta"].includes(InstallationChannel)
-      ? path.join(Global.Path.data, "kilo.db")
-      : path.join(Global.Path.data, `opencode-${InstallationChannel.replace(/[^a-zA-Z0-9._-]/g, "-")}.db`)
-    expect(Database.getChannelPath()).toBe(expected)
+    // kilocode_change start - default database remains at legacy kilo path
+    const root = xdgData?.replace(/[\r\n]+/g, "") ?? path.join(Global.Path.home, ".local", "share")
+    expect(Database.getChannelPath()).toBe(path.join(root, "kilo", "kilo.db"))
+    // kilocode_change end
   })
 })

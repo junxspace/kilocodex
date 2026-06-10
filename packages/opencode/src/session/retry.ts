@@ -22,6 +22,7 @@ export type Retryable = {
 }
 
 export const RETRY_INITIAL_DELAY = 2000
+export const DEFAULT_RETRY_COUNT = 2 // kilocode_change
 export const RETRY_BACKOFF_FACTOR = 2
 export const RETRY_MAX_DELAY_NO_HEADERS = 30_000 // 30 seconds
 export const RETRY_MAX_DELAY = 2_147_483_647 // max 32-bit signed integer for setTimeout
@@ -30,7 +31,8 @@ function cap(ms: number) {
   return Math.min(ms, RETRY_MAX_DELAY)
 }
 
-export function delay(attempt: number, error?: MessageV2.APIError) {
+export function delay(attempt: number, error?: MessageV2.APIError, base?: number) {
+  const initial = base ?? RETRY_INITIAL_DELAY
   if (error) {
     const headers = error.data.responseHeaders
     if (headers) {
@@ -56,11 +58,11 @@ export function delay(attempt: number, error?: MessageV2.APIError) {
         }
       }
 
-      return cap(RETRY_INITIAL_DELAY * Math.pow(RETRY_BACKOFF_FACTOR, attempt - 1))
+      return cap(initial * Math.pow(RETRY_BACKOFF_FACTOR, attempt - 1))
     }
   }
 
-  return cap(Math.min(RETRY_INITIAL_DELAY * Math.pow(RETRY_BACKOFF_FACTOR, attempt - 1), RETRY_MAX_DELAY_NO_HEADERS))
+  return cap(Math.min(initial * Math.pow(RETRY_BACKOFF_FACTOR, attempt - 1), RETRY_MAX_DELAY_NO_HEADERS))
 }
 
 // kilocode_change - Kilo does not emit OpenCode Go actions
@@ -75,7 +77,15 @@ export function retryable(error: Err, _provider?: string): Retryable | undefined
 
     // 5xx errors are transient server failures and should always be retried,
     // even when the provider SDK doesn't explicitly mark them as retryable.
-    if (!error.data.isRetryable && !(status !== undefined && status >= 500)) return undefined
+    if (!error.data.isRetryable && !(status !== undefined && status >= 500)) {
+      // kilocode_change start - treat specific provider errors as retryable
+      const msg = error.data.message ?? ""
+      if (isProviderTransientError(msg)) {
+        return { message: msg }
+      }
+      return undefined
+      // kilocode_change end
+    }
 
     // kilocode_change start - Kilo does not support OpenCode Go upsells. FreeUsageLimitError is not retryable: retrying
     // the same capped model is futile and the backoff loop cannot be broken by switching models in the chat selector
@@ -108,11 +118,36 @@ export function retryable(error: Err, _provider?: string): Retryable | undefined
   if (code.includes("exhausted") || code.includes("unavailable")) {
     return { message: "Provider is overloaded" }
   }
-  if (json.type === "error" && typeof json.error?.code === "string" && json.error.code.includes("rate_limit")) {
+  if (json.type === "error" && typeof json.error?.code === "string" && json.error?.code.includes("rate_limit")) {
     return { message: "Rate Limited" }
   }
   return undefined
 }
+
+// kilocode_change start - detect transient errors from specific providers.
+// Only include patterns that indicate genuinely transient infrastructure issues.
+// Do NOT add 4xx-style patterns ("Bad Request", "Unknown description"): those
+// are client errors and retrying them just delays the inevitable failure and
+// makes the TUI look frozen.
+const PROVIDER_TRANSIENT_PATTERNS = [
+  /Xunfei request failed.*code:\s*\d+/i,
+  /EngineInternalError/i,
+  /NotEnoughCvError/i,
+  /Internal Server Error/i,
+  /Service Unavailable/i,
+  /Gateway Timeout/i,
+  /Bad Gateway/i,
+  /Temporary Failure/i,
+  /Connection reset/i,
+  /ECONNRESET/i,
+  /ETIMEDOUT/i,
+  /socket hang up/i,
+]
+
+function isProviderTransientError(message: string): boolean {
+  return PROVIDER_TRANSIENT_PATTERNS.some((p) => p.test(message))
+}
+// kilocode_change end
 
 function parseJSON(value: unknown) {
   return iife(() => {
@@ -131,6 +166,7 @@ export function policy(opts: {
   set: (input: { attempt: number; message: string; action?: Retryable["action"]; next: number }) => Effect.Effect<void>
   // kilocode_change start
   limit?: number
+  initialDelay?: number
   offline?: (input: { error: unknown; message: string }) => Effect.Effect<"retry" | "blocked" | "aborted">
   // kilocode_change end
 }) {
@@ -160,7 +196,10 @@ export function policy(opts: {
         }
         // kilocode_change end
 
-        const wait = delay(meta.attempt, MessageV2.APIError.isInstance(error) ? error : undefined)
+        // kilocode_change start — support configurable initial delay from provider config
+        const base = opts.initialDelay ?? RETRY_INITIAL_DELAY
+        const wait = delay(meta.attempt, MessageV2.APIError.isInstance(error) ? error : undefined, base)
+        // kilocode_change end
         const now = yield* Clock.currentTimeMillis
         yield* opts.set({
           attempt: meta.attempt,

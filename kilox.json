@@ -1,0 +1,7 @@
+{
+  "$schema": "https://app.kilo.ai/config.json",
+  "notification": {
+    "enabled": true,
+    "webhookUrl": "https://open.feishu.cn/open-apis/bot/v2/hook/4741401d-385c-4b8e-ae7a-c0da10b5cffd"
+  }
+}

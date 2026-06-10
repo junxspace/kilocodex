@@ -469,7 +469,7 @@ export function Session() {
   // kilocode_change start
   createEffect(() => {
     const title = Locale.truncate(session()?.title ?? "", 50)
-    return exit.message.set(banner(title, session()?.id, UI.Style.TEXT_DIM, UI.Style.TEXT_NORMAL))
+    exit.message.set(banner(title, session()?.id, UI.Style.TEXT_DIM, UI.Style.TEXT_NORMAL))
   })
   // kilocode_change end
 

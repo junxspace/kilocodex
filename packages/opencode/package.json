@@ -34,8 +34,7 @@
     "db": "bun drizzle-kit"
   },
   "bin": {
-    "kilo": "./bin/kilo",
-    "kilocode": "./bin/kilo"
+    "kilox": "./bin/kilo"
   },
   "exports": {
     "./*": "./src/*.ts"

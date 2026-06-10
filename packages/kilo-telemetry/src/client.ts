@@ -5,15 +5,22 @@ import { TelemetryEvent } from "./events.js"
 const POSTHOG_API_KEY = "phc_GK2Pxl0HPj5ZPfwhLRjXrtdz8eD7e9MKnXiFrOqnB6z"
 const POSTHOG_HOST = "https://us.i.posthog.com"
 
+export type CaptureHandler = (event: TelemetryEvent, distinctId: string, properties?: Record<string, unknown>) => void
+
 export namespace Client {
   let client: PostHog | null = null
   let enabled = true
+  let captureHandler: CaptureHandler | null = null
 
   export function init() {
     client = new PostHog(POSTHOG_API_KEY, {
       host: POSTHOG_HOST,
       disableGeoip: false,
     })
+  }
+
+  export function setCaptureHandler(handler: CaptureHandler | null) {
+    captureHandler = handler
   }
 
   export function getClient(): PostHog | null {
@@ -32,48 +39,33 @@ export namespace Client {
   }
 
   export function capture(event: TelemetryEvent, properties?: Record<string, unknown>) {
-    if (!enabled || !client) return
+    if (!enabled) return
 
     const distinctId = Identity.getDistinctId()
     const orgId = Identity.getOrganizationId()
 
-    client.capture({
-      distinctId,
-      event,
-      properties: {
-        ...properties,
-        ...(orgId && { kilocodeOrganizationId: orgId }),
-      },
-    })
+    const props = {
+      ...properties,
+      ...(orgId && { kilocodeOrganizationId: orgId }),
+    }
+
+    // Write to local database if handler is set
+    if (captureHandler) {
+      captureHandler(event, distinctId, props)
+    }
   }
 
   export function identify(distinctId: string, properties?: Record<string, unknown>) {
-    if (!enabled || !client) return
-
-    client.capture({
-      distinctId,
-      event: "$identify",
-      properties: {
-        $set: properties,
-      },
-    })
+    if (!enabled) return
+    // Local only - PostHog disabled
   }
 
   export function alias(distinctId: string, aliasId: string) {
-    if (!enabled || !client) return
-
-    client.alias({
-      distinctId,
-      alias: aliasId,
-    })
+    if (!enabled) return
+    // Local only - PostHog disabled
   }
 
   export async function shutdown(): Promise<void> {
-    if (client) {
-      // Flush any pending events before shutdown
-      await client.flush()
-      await client.shutdown()
-      client = null
-    }
+    // PostHog disabled - no flush needed
   }
 }

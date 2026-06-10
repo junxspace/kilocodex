@@ -5,13 +5,13 @@ export * from "drizzle-orm"
 import { LocalContext } from "@/util/local-context"
 import { lazy } from "../util/lazy"
 import { Global } from "@opencode-ai/core/global"
+import { xdgData } from "xdg-basedir" // kilocode_change
 import * as Log from "@opencode-ai/core/util/log"
 import { NamedError } from "@opencode-ai/core/util/error"
 import z from "zod"
 import path from "path"
-import { readFileSync, readdirSync, existsSync } from "fs"
+import { readFileSync, readdirSync, existsSync, mkdirSync } from "fs"
 import { Flag } from "@opencode-ai/core/flag/flag"
-import { InstallationChannel } from "@opencode-ai/core/installation/version"
 import { InstanceState } from "@/effect/instance-state"
 import { iife } from "@/util/iife"
 import { init } from "#db"
@@ -27,9 +27,16 @@ export const NotFoundError = NamedError.create(
 
 const log = Log.create({ service: "db" })
 
-// kilocode_change start - always use kilo.db regardless of channel
+// kilocode_change start - use ~/.local/share/kilo/kilo.db as default database path
+const clean = (p: string | undefined) => p?.replace(/[\r\n]+/g, "")
+
+function legacyDbPath() {
+  const root = clean(xdgData) ?? path.join(Global.Path.home, ".local", "share")
+  return path.join(root, "kilo", "kilo.db")
+}
+
 export function getChannelPath() {
-  return path.join(Global.Path.data, "kilo.db")
+  return legacyDbPath()
 }
 // kilocode_change end
 
@@ -90,6 +97,7 @@ function migrations(dir: string): Journal {
 export const Client = lazy(() => {
   log.info("opening database", { path: Path })
 
+  if (Path !== ":memory:") mkdirSync(path.dirname(Path), { recursive: true }) // kilocode_change
   const db = init(Path)
 
   db.run("PRAGMA journal_mode = WAL")
@@ -116,6 +124,20 @@ export const Client = lazy(() => {
     }
     applyMigrations(db, entries)
   }
+
+  // kilocode_change start - ensure telemetry table exists
+  db.run(`
+    CREATE TABLE IF NOT EXISTS telemetry (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event TEXT NOT NULL,
+      distinct_id TEXT,
+      properties TEXT,
+      time_created INTEGER NOT NULL
+    )
+  `)
+  db.run(`CREATE INDEX IF NOT EXISTS idx_telemetry_event ON telemetry (event)`)
+  db.run(`CREATE INDEX IF NOT EXISTS idx_telemetry_time_created ON telemetry (time_created)`)
+  // kilocode_change end
 
   return db
 })

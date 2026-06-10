@@ -114,7 +114,7 @@ export function Footer() {
                 {mcp()} MCP
               </text>
             </Show>
-            <Show when={indexingEnabled(sync.data.config)}>
+            <Show when={indexingEnabled(sync.data.config) && indexingText(indexing())}>
               <text fg={indexingTone(indexing().state, theme)}>{indexingText(indexing()).slice(0, 48)}</text>
             </Show>
             {/* kilocode_change end */}

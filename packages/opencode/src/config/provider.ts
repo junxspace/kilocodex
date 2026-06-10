@@ -108,6 +108,14 @@ export const Info = Schema.Struct({
           description:
             "Timeout in milliseconds between streamed SSE chunks for this provider. If no chunk arrives within this window, the request is aborted.",
         }),
+        // kilocode_change start - unified retry config per provider
+        retries: Schema.optional(PositiveInt).annotate({
+          description: "Max retry attempts on API errors. Applies to both AI SDK (HTTP-level) and session-level retries. Default: 2.",
+        }),
+        retryDelay: Schema.optional(PositiveInt).annotate({
+          description: "Initial retry backoff delay in milliseconds. Doubles on each attempt (exponential backoff). Default: 2000.",
+        }),
+        // kilocode_change end
       }),
       [Schema.Record(Schema.String, Schema.Any)],
     ),

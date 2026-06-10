@@ -398,9 +398,10 @@ export const McpLogoutCommand = effectCmd({
 })
 
 async function resolveConfigPath(baseDir: string, global = false) {
-  // kilocode_change start - prefer kilo.json/.kilo over opencode.json/.opencode
-  // Check for existing config files (prefer .jsonc over .json, check .kilo/ and .opencode/ subdirectory too)
+  // kilocode_change start - prefer kilox.json > kilo.json > opencode.json
   const candidates = [
+    path.join(baseDir, "kilox.json"),
+    path.join(baseDir, "kilox.jsonc"),
     path.join(baseDir, "kilo.json"),
     path.join(baseDir, "kilo.jsonc"),
     path.join(baseDir, "opencode.json"),
@@ -409,6 +410,8 @@ async function resolveConfigPath(baseDir: string, global = false) {
 
   if (!global) {
     candidates.push(
+      path.join(baseDir, ".kilo", "kilox.json"),
+      path.join(baseDir, ".kilo", "kilox.jsonc"),
       path.join(baseDir, ".kilo", "kilo.json"),
       path.join(baseDir, ".kilo", "kilo.jsonc"),
       path.join(baseDir, ".kilo", "opencode.json"),
@@ -424,8 +427,7 @@ async function resolveConfigPath(baseDir: string, global = false) {
     }
   }
 
-  // Default to kilo.json if none exist
-  return path.join(baseDir, "kilo.json")
+  return path.join(baseDir, "kilox.json")
   // kilocode_change end
 }
 

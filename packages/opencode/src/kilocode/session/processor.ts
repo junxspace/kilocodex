@@ -10,6 +10,7 @@ import * as Log from "@opencode-ai/core/util/log"
 import { Effect } from "effect"
 import { Flag } from "@opencode-ai/core/flag/flag"
 import { EffectBridge } from "@/effect/bridge"
+import { DEFAULT_RETRY_COUNT, RETRY_INITIAL_DELAY } from "@/session/retry"
 
 export type ReviewTelemetry = {
   mode: "review"
@@ -162,18 +163,21 @@ export namespace KiloSessionProcessor {
 
   /**
    * Returns the Kilo-specific retry policy options (limit + offline handler).
-   * Designed to be spread into SessionRetry.policy() opts.
-   *
-   * The `abort` signal is used by the offline handler to cancel the network
-   * reconnection wait when the session is interrupted.
+   * Reads per-provider retryCount/retryInterval from config when available.
    */
   export function retryOpts(input: {
     sessionID: SessionID
     abort: AbortSignal
     set: (sessionID: SessionID, status: SessionStatus.Info) => Effect.Effect<void>
+    providerID?: string
+    retries?: number
+    retryDelay?: number
   }) {
+    const limit = input.retries ?? Flag.KILO_SESSION_RETRY_LIMIT ?? DEFAULT_RETRY_COUNT
+    const initialDelay = input.retryDelay ?? RETRY_INITIAL_DELAY
     return {
-      limit: Flag.KILO_SESSION_RETRY_LIMIT,
+      limit,
+      initialDelay,
       offline: (info: { error: unknown; message: string }) =>
         handleOffline({
           error: info.error,

@@ -57,7 +57,7 @@ export namespace KilocodeConfigSources {
   type Pending = Omit<Source, "order">
 
   const roots = [".kilocode", ".kilo", ".opencode"] as const
-  const global = ["config.json", "kilo.json", "kilo.jsonc", "opencode.json", "opencode.jsonc"] as const
+  const global = ["config.json", "kilo.json", "kilo.jsonc", "kilox.json", "kilox.jsonc", "opencode.json", "opencode.jsonc"] as const
 
   export async function list(input: Input): Promise<Result> {
     const project = Flag.KILO_DISABLE_PROJECT_CONFIG ? [] : await projectSources(input)
@@ -119,10 +119,11 @@ export namespace KilocodeConfigSources {
   }
 
   async function projectSources(input: Input): Promise<Pending[]> {
+    const kilox = await projectFiles("kilox", input)
     const kilo = await projectFiles("kilo", input)
     const opencode = await projectFiles("opencode", input)
     return Promise.all(
-      [...kilo, ...opencode].map((file) =>
+      [...kilox, ...kilo, ...opencode].map((file) =>
         fileSource({ kind: "project-file", scope: "project", label: "Project config", file }),
       ),
     )

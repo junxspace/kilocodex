@@ -64,7 +64,6 @@ import { AppRuntime } from "./effect/app-runtime"
 import { Auth } from "./auth"
 // kilocode_change end
 import { DbCommand } from "./cli/cmd/db"
-import path from "path"
 import { Global } from "@opencode-ai/core/global"
 import { createHelpCommand } from "./kilocode/help-command" // kilocode_change
 import { JsonMigration } from "@/storage/json-migration"
@@ -150,6 +149,16 @@ let cli = yargs(args) // kilocode_change
       process_role: processMetadata.processRole,
       run_id: processMetadata.runID,
     })
+    Log.Default.info("kilox runtime", {
+      app: "kilox",
+      binary: "kilox",
+      pid: process.pid,
+      dataPath: Global.Path.data,
+      configPath: Global.Path.config,
+      logPath: Global.Path.log,
+      cachePath: Global.Path.cache,
+      statePath: Global.Path.state,
+    })
 
     // kilocode_change start - Initialize telemetry
     const globalCfg = await AppRuntime.runPromise(Config.Service.use((cfg) => cfg.getGlobal()))
@@ -157,6 +166,23 @@ let cli = yargs(args) // kilocode_change
       dataPath: Global.Path.data,
       version: InstallationVersion,
       enabled: globalCfg.experimental?.openTelemetry !== false,
+    })
+
+    // Set local database capture handler
+    const { Database } = await import("@/storage/db")
+    const { TelemetryTable } = await import("@/storage/telemetry.sql")
+    Telemetry.setCaptureHandler((event: string, distinctId: string, properties?: Record<string, unknown>) => {
+      try {
+        Database.use((db: any) =>
+          db.insert(TelemetryTable).values({
+            event,
+            distinct_id: distinctId,
+            properties: properties ? JSON.stringify(properties) : null,
+          }).run(),
+        )
+      } catch {
+        // Swallow DB write errors to avoid disrupting the main flow
+      }
     })
 
     // Migrate legacy Kilo CLI auth if needed
@@ -175,8 +201,11 @@ let cli = yargs(args) // kilocode_change
     Telemetry.trackCliStart()
     // kilocode_change end
 
+    // kilocode_change - notification setup moved to serve.ts (daemon) and worker.ts (embedded server)
+    // where GlobalBus events actually fire. The parent CLI process Bus is empty.
+
     // kilocode_change start - one-time database migration progress
-    const marker = path.join(Global.Path.data, "kilo.db")
+    const marker = Database.getChannelPath()
     if (!(await Filesystem.exists(marker))) {
       const tty = process.stderr.isTTY
       process.stderr.write("Performing one time database migration, may take a few minutes..." + EOL)

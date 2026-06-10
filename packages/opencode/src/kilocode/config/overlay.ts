@@ -69,7 +69,7 @@ export namespace KilocodeConfigOverlay {
     sources: KilocodeConfigSources.Source[]
   }
 
-  const files = ["kilo.jsonc", "kilo.json", "opencode.jsonc", "opencode.json"] as const
+  const files = ["kilox.jsonc", "kilox.json", "kilo.jsonc", "kilo.json", "opencode.jsonc", "opencode.json"] as const
   const dirs = [".kilo", ".kilocode", ".opencode"] as const
 
   const fieldPaths = [
@@ -102,7 +102,7 @@ export namespace KilocodeConfigOverlay {
   }
 
   export function globalTarget() {
-    const candidates = ["kilo.jsonc", "kilo.json", "opencode.jsonc", "opencode.json", "config.json"].map((file) =>
+    const candidates = ["kilox.jsonc", "kilox.json", "kilo.jsonc", "kilo.json", "opencode.jsonc", "opencode.json", "config.json"].map((file) =>
       path.join(Global.Path.config, file),
     )
     return candidates.find((file) => existsSync(file)) ?? candidates[0]
