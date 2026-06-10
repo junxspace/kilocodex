@@ -1,6 +1,7 @@
 import { describe, expect, test, mock, beforeEach, spyOn } from "bun:test"
 import type { GitContext } from "@/kilocode/commit-message/types"
 import type { Provider } from "@/provider/provider"
+import { ProviderID, ModelID } from "@/provider/schema"
 
 // Mock dependencies before importing the module under test.
 // IMPORTANT: Bun's mock.module() is process-wide and permanent. To avoid
@@ -26,6 +27,7 @@ const defaultGitContext: GitContext = {
 
 let mockGitContext: GitContext = { ...defaultGitContext }
 let captured: { path: string; selected?: string[] } = { path: "" }
+let input: unknown
 
 mock.module("@/agent/agent", () => ({
   ...realAgent,
@@ -48,9 +50,15 @@ const context = spyOn(CommitMessageRuntime, "context").mockImplementation(async 
   captured = { path: repoPath, selected: selectedFiles }
   return mockGitContext
 })
-const stream = spyOn(CommitMessageRuntime, "generate").mockImplementation(async () => mockStreamText)
+const stream = spyOn(CommitMessageRuntime, "generate").mockImplementation(async (value) => {
+  input = value
+  return mockStreamText
+})
 const model = spyOn(CommitMessageRuntime, "model").mockImplementation(
-  async () => ({ providerID: "test", id: "test-small-model" }) as Provider.Model,
+  async (ref) =>
+    ref
+      ? ({ providerID: ref.split("/")[0], id: ref.split("/").slice(1).join("/") }) as Provider.Model
+      : ({ providerID: "test", id: "test-small-model" }) as Provider.Model,
 )
 
 describe("commit-message.generate", () => {
@@ -59,11 +67,20 @@ describe("commit-message.generate", () => {
       captured = { path: repoPath, selected: selectedFiles }
       return mockGitContext
     })
-    stream.mockImplementation(async () => mockStreamText)
-    model.mockImplementation(async () => ({ providerID: "test", id: "test-small-model" }) as Provider.Model)
+    stream.mockImplementation(async (value) => {
+      input = value
+      return mockStreamText
+    })
+    model.mockImplementation(
+      async (ref) =>
+        ref
+          ? ({ providerID: ProviderID.make(ref.split("/")[0]), id: ModelID.make(ref.split("/").slice(1).join("/")) }) as Provider.Model
+          : ({ providerID: ProviderID.make("test"), id: ModelID.make("test-small-model") }) as Provider.Model,
+    )
     mockStreamText = "feat(src): add hello world logging"
     mockGitContext = { ...defaultGitContext }
     captured = { path: "" }
+    input = undefined
   })
 
   describe("prompt construction", () => {
@@ -162,6 +179,18 @@ describe("commit-message.generate", () => {
     test("uses custom prompt when provided", async () => {
       const result = await generateCommitMessage({ path: "/repo", prompt: "Write a haiku commit message." })
       expect(result.message).toBeTruthy()
+    })
+  })
+
+  describe("custom model", () => {
+    test("uses configured model when provided", async () => {
+      const result = await generateCommitMessage({ path: "/repo", model: "custom/model-id" })
+      const value = input as { model: Provider.Model; user: { model: { providerID: string; modelID: string } } }
+
+      expect(result.message).toBeTruthy()
+      expect(String(value.model.providerID)).toBe("custom")
+      expect(String(value.model.id)).toBe("model-id")
+      expect(value.user.model).toEqual({ providerID: "custom", modelID: "model-id" })
     })
   })
 })

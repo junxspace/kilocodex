@@ -7,6 +7,13 @@ export interface CommitMessageRequest {
   previousMessage?: string
   /** Optional custom system prompt — overrides the default conventional commits prompt */
   prompt?: string
+  /** Optional model in provider/model format */
+  model?: string
+  /** Optional analyzed commit intent */
+  intent?: {
+    files: string[]
+    description: string
+  }
 }
 
 export interface CommitMessageResponse {

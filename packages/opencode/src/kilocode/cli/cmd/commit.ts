@@ -7,6 +7,7 @@ import { UI } from "../../../cli/ui"
 import { Config } from "../../../config/config"
 import { invocationDirectory } from "../invocation-directory"
 import { generateCommitMessage } from "../../commit-message"
+import { getGitContext } from "../../commit-message/git-context"
 
 export type Status = {
   staged: string[]
@@ -21,7 +22,14 @@ type GitResult = {
 }
 
 type Action = "commit" | "edit" | "regenerate" | "cancel"
-type Stage = "tracked" | "all" | "cancel"
+type PushAction = "push" | "cancel"
+type Intent = {
+  files: string[]
+  description: string
+}
+type IntentResult = {
+  intents: Intent[]
+}
 
 type Args = {
   dir?: string
@@ -34,8 +42,9 @@ type Args = {
   prompt?: string
   git?: (args: string[], cwd: string) => GitResult
   generate?: typeof generateCommitMessage
-  selectStage?: (status: Status) => Promise<Stage>
+  analyzeIntent?: (input: { path: string; status: Status }) => Promise<IntentResult>
   selectAction?: (message: string) => Promise<Action>
+  selectPush?: () => Promise<PushAction>
   edit?: (message: string) => Promise<string | undefined>
   output?: (text: string) => void
   error?: (text: string) => void
@@ -98,6 +107,26 @@ function empty(status: Status) {
   return status.staged.length === 0 && status.unstaged.length === 0 && status.untracked.length === 0
 }
 
+function files(status: Status) {
+  return [...new Set([...status.staged, ...status.unstaged, ...status.untracked])]
+}
+
+async function analyze(input: { path: string; status: Status }): Promise<IntentResult> {
+  const ctx = await getGitContext(input.path)
+  return {
+    intents: [
+      {
+        files: ctx.files.map((file) => file.path),
+        description: "commit related changes",
+      },
+    ],
+  }
+}
+
+function needsAdd(intent: Intent, status: Status) {
+  return intent.files.some((file) => status.unstaged.includes(file) || status.untracked.includes(file))
+}
+
 function check(result: GitResult, error: (text: string) => void, exit: (code: number) => void) {
   if (result.code === 0) return true
   error(result.stderr.trim() || result.stdout.trim() || "git command failed")
@@ -105,18 +134,16 @@ function check(result: GitResult, error: (text: string) => void, exit: (code: nu
   return false
 }
 
-async function selectStage(status: Status): Promise<Stage> {
-  const options = [
-    ...(status.unstaged.length > 0 ? [{ value: "tracked", label: "Stage tracked changes" }] : []),
-    ...(status.untracked.length > 0 ? [{ value: "all", label: "Stage all changes" }] : []),
-    { value: "cancel", label: "Cancel" },
-  ]
+async function selectPush(): Promise<PushAction> {
   const result = await prompts.select({
-    message: "No staged changes found. What do you want to stage?",
-    options,
+    message: "No changes found. Push current branch?",
+    options: [
+      { value: "push", label: "Push" },
+      { value: "cancel", label: "Cancel" },
+    ],
   })
   if (prompts.isCancel(result)) return "cancel"
-  return result as Stage
+  return result as PushAction
 }
 
 async function selectAction(message: string): Promise<Action> {
@@ -157,97 +184,114 @@ export async function handle(args: Args) {
   out(format("Untracked files", status.untracked))
 
   if (empty(status)) {
-    error("No changes found")
-    exit(1)
-    return
-  }
-
-  if (status.staged.length === 0) {
-    if (args.dryRun) {
-      error("No staged changes found")
-      exit(1)
-      return
-    }
-    const stage = args.all ? "tracked" : args.includeUntracked ? "all" : await (args.selectStage ?? selectStage)(status)
-    if (stage === "cancel") {
+    out("No changes found")
+    const action = args.yes ? "push" : await (args.selectPush ?? selectPush)()
+    if (action === "cancel") {
       out("Cancelled")
       return
     }
-    const stageResult = run(stage === "all" ? ["add", "-A"] : ["add", "-u"], root)
-    if (!check(stageResult, error, exit)) return
-    const next = run(["status", "--porcelain"], root)
-    if (!check(next, error, exit)) return
-    status = parseStatus(next.stdout)
-    if (status.staged.length === 0) {
-      error("No staged changes found")
-      exit(1)
-      return
-    }
+    const result = run(["push"], root)
+    if (!check(result, error, exit)) return
+    out(result.stdout.trim() || "Pushed")
+    return
   }
 
-  const gen = args.generate ?? generateCommitMessage
-  let msg = args.message
-  let prev = args.previous
-  if (!msg) {
-    const result = await gen({ path: root, previousMessage: prev, prompt: args.prompt })
-    msg = result.message
-  }
-  if (!msg) {
-    error("Commit message is empty")
+  const unstaged = run(["diff"], root)
+  if (!check(unstaged, error, exit)) return
+  const staged = run(["diff", "--staged"], root)
+  if (!check(staged, error, exit)) return
+
+  const analysis = await (args.analyzeIntent ?? analyze)({ path: root, status })
+  const intents = analysis.intents.filter((intent) => intent.files.length > 0)
+  if (intents.length === 0) {
+    error("No committable intent found")
     exit(1)
     return
   }
 
-  while (true) {
-    if (!msg.trim()) {
+  if (!args.dryRun) {
+    const reset = run(["reset"], root)
+    if (!check(reset, error, exit)) return
+  }
+
+  const gen = args.generate ?? generateCommitMessage
+  for (const intent of intents) {
+    const known = new Set(files(status))
+    const invalid = intent.files.filter((file) => !known.has(file))
+    if (invalid.length > 0) {
+      error(`Intent references files that are not changed: ${invalid.join(", ")}`)
+      exit(1)
+      return
+    }
+
+    if (!args.dryRun) {
+      const result = run(["add", ...intent.files], root)
+      if (!check(result, error, exit)) return
+    }
+
+    let msg = args.message ?? intent.description
+    let prev = args.previous
+    if (!args.message) {
+      const result = await gen({ path: root, selectedFiles: intent.files, previousMessage: prev, prompt: args.prompt, intent })
+      msg = result.message
+    }
+    if (!msg) {
       error("Commit message is empty")
       exit(1)
       return
     }
 
-    out("Generated commit message:\n\n" + msg)
+    while (true) {
+      if (!msg.trim()) {
+        error("Commit message is empty")
+        exit(1)
+        return
+      }
 
-    const action = args.yes ? "commit" : await (args.selectAction ?? selectAction)(msg)
-    if (action === "cancel") {
-      out("Cancelled")
-      return
-    }
-    if (action === "edit") {
-      const next = await (args.edit ?? edit)(msg)
-      if (!next) {
+      out("Generated commit message:\n\n" + msg)
+
+      const action = args.yes || args.dryRun ? "commit" : await (args.selectAction ?? selectAction)(msg)
+      if (action === "cancel") {
         out("Cancelled")
         return
       }
-      msg = next
-      continue
-    }
-    if (action === "regenerate") {
-      prev = msg
-      const result = await gen({ path: root, previousMessage: prev, prompt: args.prompt })
-      msg = result.message
-      continue
-    }
+      if (action === "edit") {
+        const next = await (args.edit ?? edit)(msg)
+        if (!next) {
+          out("Cancelled")
+          return
+        }
+        msg = next
+        continue
+      }
+      if (action === "regenerate") {
+        prev = msg
+        const result = await gen({ path: root, selectedFiles: intent.files, previousMessage: prev, prompt: args.prompt, intent })
+        msg = result.message
+        continue
+      }
 
-    const diff = run(["diff", "--cached", "--quiet"], root)
-    if (diff.code === 0) {
-      error("No staged changes found")
-      exit(1)
-      return
-    }
-    if (diff.code !== 1) {
-      check(diff, error, exit)
-      return
-    }
+      if (args.dryRun) {
+        out("Dry run: commit not created")
+        break
+      }
 
-    if (args.dryRun) {
-      out("Dry run: commit not created")
-      return
-    }
+      const diff = run(["diff", "--cached", "--quiet"], root)
+      if (diff.code === 0) {
+        error("No staged changes found")
+        exit(1)
+        return
+      }
+      if (diff.code !== 1) {
+        check(diff, error, exit)
+        return
+      }
 
-    const result = run(["commit", "-m", msg], root)
-    if (!check(result, error, exit)) return
-    out(result.stdout.trim() || "Committed")
-    return
+      const result = run(["commit", "-m", msg], root)
+      if (!check(result, error, exit)) return
+      out(result.stdout.trim() || "Committed")
+      break
+    }
   }
 }
 

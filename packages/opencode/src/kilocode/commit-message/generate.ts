@@ -1,4 +1,5 @@
 import { Provider } from "@/provider/provider"
+import { ModelID, ProviderID } from "@/provider/schema"
 import { LLM } from "@/session/llm"
 import { KiloLLM } from "@/kilocode/session/llm"
 import { Agent } from "@/agent/agent"
@@ -14,12 +15,17 @@ export const CommitMessageRuntime = {
   context(repoPath: string, selectedFiles?: string[]) {
     return getGitContext(repoPath, selectedFiles)
   },
-  model() {
+  model(ref?: string) {
     return AppRuntime.runPromise(
       Provider.Service.use((svc) =>
         Effect.gen(function* () {
-          const ref = yield* svc.defaultModel()
-          return (yield* svc.getSmallModel(ref.providerID)) ?? (yield* svc.getModel(ref.providerID, ref.modelID))
+          if (ref) {
+            const [provider, ...parts] = ref.split("/")
+            const model = parts.join("/")
+            if (provider && model) return yield* svc.getModel(ProviderID.make(provider), ModelID.make(model))
+          }
+          const cfg = yield* svc.defaultModel()
+          return (yield* svc.getSmallModel(cfg.providerID)) ?? (yield* svc.getModel(cfg.providerID, cfg.modelID))
         }),
       ),
     )
@@ -154,7 +160,7 @@ export async function generateCommitMessage(request: CommitMessageRequest): Prom
     files: ctx.files.length,
   })
 
-  const model = await CommitMessageRuntime.model()
+  const model = await CommitMessageRuntime.model(request.model)
 
   const agent: Agent.Info = {
     name: "commit-message",
@@ -167,6 +173,9 @@ export async function generateCommitMessage(request: CommitMessageRequest): Prom
   }
 
   let userMessage = buildUserMessage(ctx)
+  if (request.intent) {
+    userMessage = `Commit intent: ${request.intent.description}\nFiles in this commit:\n${request.intent.files.join("\n")}\n\n${userMessage}`
+  }
   if (request.previousMessage) {
     userMessage = `IMPORTANT: Generate a COMPLETELY DIFFERENT commit message from the previous one. The previous message was: "${request.previousMessage}". Use a different type, scope, or description approach.\n\n${userMessage}`
   }
