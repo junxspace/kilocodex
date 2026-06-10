@@ -155,23 +155,23 @@ function preview(message: string, intent?: Intent) {
   const parts = [
     section(
       "Commit message",
-      [`  ${UI.Style.TEXT_SUCCESS_BOLD}${subject}${UI.Style.TEXT_NORMAL}`, ...body.map((line) => `  ${UI.Style.TEXT_DIM}${line}${UI.Style.TEXT_NORMAL}`)].join("\n"),
+      [`  ${UI.Style.TEXT_SUCCESS_BOLD}${subject}${UI.Style.TEXT_NORMAL}`, ...body.map((line) => `  ${line}${UI.Style.TEXT_NORMAL}`)].join("\n"),
     ),
   ]
   if (intent) {
     parts.push(
       section(
         "Files to commit",
-        intent.files.map((file) => `  ${UI.Style.TEXT_DIM}${file}${UI.Style.TEXT_NORMAL}`).join("\n"),
+        intent.files.map((file) => `  ${file}${UI.Style.TEXT_NORMAL}`).join("\n"),
       ),
     )
     parts.push(
       section(
         "Action",
         [
-          `  ${UI.Style.TEXT_DIM}git reset${UI.Style.TEXT_NORMAL}`,
-          `  ${UI.Style.TEXT_DIM}git add ${intent.files.join(" ")}${UI.Style.TEXT_NORMAL}`,
-          `  ${UI.Style.TEXT_DIM}git commit -m <message>${UI.Style.TEXT_NORMAL}`,
+          `  git reset`,
+          `  git add ${intent.files.join(" ")}`,
+          `  git commit -m <message>`,
         ].join("\n"),
       ),
     )
