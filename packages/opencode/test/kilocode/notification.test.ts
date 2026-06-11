@@ -3,7 +3,13 @@ import { Config } from "../../src/config/config"
 import { Permission } from "../../src/permission"
 import { Question } from "../../src/question"
 import { Session } from "../../src/session/session"
-import { notificationEvent, resolveTerminalStatus, shouldNotify, type NotificationConfig } from "../../src/kilocode/notification"
+import {
+  notificationEvent,
+  resolveTerminalStatus,
+  shouldNotify,
+  shouldSkipTerminalSession,
+  type NotificationConfig,
+} from "../../src/kilocode/notification"
 
 const cfg = (input: Partial<NotificationConfig> = {}): NotificationConfig => ({
   webhookUrl: "https://example.com/webhook",
@@ -27,6 +33,14 @@ describe("notification terminal status", () => {
 })
 
 describe("notification events", () => {
+  test("skips terminal child session notifications", () => {
+    expect(shouldSkipTerminalSession("task_completed", { parentID: "ses_parent" })).toBe(true)
+    expect(shouldSkipTerminalSession("task_error", { parentID: "ses_parent" })).toBe(true)
+    expect(shouldSkipTerminalSession("task_interrupted", { parentID: "ses_parent" })).toBe(true)
+    expect(shouldSkipTerminalSession("permission_required", { parentID: "ses_parent" })).toBe(false)
+    expect(shouldSkipTerminalSession("task_completed", { parentID: undefined })).toBe(false)
+  })
+
   test("maps bus events to user events", () => {
     expect(notificationEvent(Session.Event.TurnClose.type, { reason: "completed" })).toEqual({
       event: "task_completed",

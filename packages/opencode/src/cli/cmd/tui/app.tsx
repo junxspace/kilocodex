@@ -67,7 +67,7 @@ import { TuiPluginRuntime } from "@/cli/cmd/tui/plugin/runtime"
 import { createTuiApi } from "@/cli/cmd/tui/plugin/api"
 import type { RouteMap } from "@/cli/cmd/tui/plugin/api"
 import { FormatError, FormatUnknownError } from "@/cli/error"
-import { kitty, resetTerminalState } from "@/kilocode/cli/cmd/tui/util/terminal" // kilocode_change
+import { kitty, resetTerminalState, withReset } from "@/kilocode/cli/cmd/tui/util/terminal" // kilocode_change
 import { CommandPaletteProvider, useCommandPalette } from "./context/command-palette"
 import { OpencodeKeymapProvider, registerOpencodeKeymap, useBindings, useOpencodeKeymap } from "./keymap"
 
@@ -1000,7 +1000,7 @@ function ErrorComponent(props: {
     // kilocode_change start - disable mouse tracking BEFORE renderer.destroy() to prevent
     // mouse events from being echoed to the terminal as garbled characters
     resetTerminalState()
-    renderer?.destroy()
+    await withReset(async () => renderer?.destroy())
     win32FlushInputBuffer()
     // kilocode_change end
     await props.onExit()

@@ -2,7 +2,7 @@ import { useRenderer } from "@opentui/solid"
 import { createSimpleContext } from "./helper"
 import { FormatError, FormatUnknownError } from "@/cli/error"
 import { win32FlushInputBuffer } from "../win32"
-import { resetTerminalState } from "@/kilocode/cli/cmd/tui/util/terminal" // kilocode_change
+import { resetTerminalState, withReset } from "@/kilocode/cli/cmd/tui/util/terminal" // kilocode_change
 import { writeSync } from "node:fs" // kilocode_change
 type Exit = ((reason?: unknown) => Promise<void>) & {
   message: {
@@ -42,7 +42,7 @@ export const { use: useExit, provider: ExitProvider } = createSimpleContext({
           // the race where setRawMode(false) is called while mouse tracking is still active,
           // causing mouse events to be echoed to the terminal as garbled characters like "$ 51;74;17M"
           resetTerminalState()
-          renderer.destroy()
+          await withReset(async () => renderer.destroy())
           win32FlushInputBuffer()
           // kilocode_change end
           if (reason) {

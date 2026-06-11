@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test"
-import { flushTerminalInput, kitty, sequences } from "../../src/kilocode/cli/cmd/tui/util/terminal"
+import { flushTerminalInput, kitty, sequences, withReset } from "../../src/kilocode/cli/cmd/tui/util/terminal"
 
 const keys = ["TERM_PROGRAM", "MSYSTEM", "KILO_DISABLE_KITTY_KEYBOARD", "KILO_ENABLE_KITTY_KEYBOARD"] as const
 type Key = (typeof keys)[number]
@@ -102,4 +102,37 @@ test("flushes queued terminal input", () => {
   })
 
   expect(calls).toEqual([[42, 0]])
+})
+
+test("resets after wrapped cleanup completes", async () => {
+  const calls: string[] = []
+
+  await withReset(
+    async () => {
+      calls.push("destroy")
+    },
+    () => {
+      calls.push("reset")
+    },
+  )
+
+  expect(calls).toEqual(["destroy", "reset"])
+})
+
+test("resets after wrapped cleanup throws", async () => {
+  const calls: string[] = []
+
+  await expect(
+    withReset(
+      async () => {
+        calls.push("destroy")
+        throw new Error("boom")
+      },
+      () => {
+        calls.push("reset")
+      },
+    ),
+  ).rejects.toThrow("boom")
+
+  expect(calls).toEqual(["destroy", "reset"])
 })

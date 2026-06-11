@@ -83,3 +83,11 @@ export function resetTerminalState() {
     console.error("resetTerminalState failed", err)
   }
 }
+
+export async function withReset<T>(fn: () => Promise<T>, reset = resetTerminalState) {
+  try {
+    return await fn()
+  } finally {
+    reset()
+  }
+}

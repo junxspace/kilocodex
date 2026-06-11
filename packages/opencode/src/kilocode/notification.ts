@@ -142,6 +142,11 @@ export function shouldNotify(cfg: Pick<NotificationConfig, "enabledEvents" | "di
   return base.has(event)
 }
 
+export function shouldSkipTerminalSession(event: NotificationEvent, session: { parentID?: string | null } | null) {
+  if (!session?.parentID) return false
+  return event === "task_completed" || event === "task_error" || event === "task_interrupted"
+}
+
 function terminal(status: string) {
   return status === "completed" || status === "interrupted" || status === "error" || status === "session_error"
 }
@@ -277,6 +282,23 @@ async function handle(evt: GlobalEvent) {
   if (!item) return
 
   log.info("notification event received", { type, event: item.event, sessionID, status: item.status, directory })
+  const session = (() => {
+    try {
+      const db = new Database(dbFile(), { readonly: true })
+      const row = db.query("SELECT parent_id as parentID FROM session WHERE id = $id").get({ $id: sessionID }) as {
+        parentID: string | null
+      } | null
+      db.close()
+      return row
+    } catch (err) {
+      log.debug("failed to read session parent", { err, sessionID })
+      return null
+    }
+  })()
+  if (shouldSkipTerminalSession(item.event, session)) {
+    log.info("notification skipped", { reason: "child_session_terminal", event: item.event, sessionID, status: item.status, directory })
+    return
+  }
   const cfg = await getConfig()
   if (!cfg) {
     log.info("notification skipped", { reason: "missing_config", sessionID, status: item.status, directory })
