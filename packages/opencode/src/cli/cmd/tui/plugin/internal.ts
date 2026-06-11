@@ -8,6 +8,7 @@ import KiloSidebarFooter from "@/kilocode/plugins/sidebar-footer"
 import KiloSidebarBackgroundProcesses from "@/kilocode/plugins/sidebar-background-processes"
 import KiloSidebarPr from "@/kilocode/plugins/sidebar-pr"
 import KiloSidebarUsage from "@/kilocode/plugins/sidebar-usage"
+import KiloCommit from "@/kilocode/plugins/commit"
 // kilocode_change end
 import SidebarContext from "../feature-plugins/sidebar/context"
 import SidebarMcp from "../feature-plugins/sidebar/mcp"
@@ -35,6 +36,7 @@ export const INTERNAL_TUI_PLUGINS: InternalTuiPlugin[] = [
   KiloSidebarBackgroundProcesses, // kilocode_change
   KiloSidebarPr, // kilocode_change
   KiloSidebarUsage, // kilocode_change
+  KiloCommit, // kilocode_change
   HomeFooter,
   HomeTips,
   SidebarContext,

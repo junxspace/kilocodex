@@ -49,8 +49,13 @@ export function sequences() {
     "\x1b[?1015l", // disable RXVT mouse mode
     "\x1b[?1016l", // disable SGR pixel mouse mode
     "\x1b[?2004l", // disable bracketed paste
+    "\x1b[?2026l", // disable synchronized output mode
     "\x1b[?1004l", // disable focus tracking
     "\x1b[?1l", // disable application cursor keys
+    "\x1b[?1049l", // disable alternate screen buffer
+    "\x1b[?1048l", // restore cursor
+    "\x1b[?47l", // disable alternate screen buffer (legacy)
+    "\x1b[?1047l", // disable alternate screen buffer (legacy)
     "\x1b>", // disable application keypad mode
     "\x1b[?66l", // disable numeric keypad application mode
     "\x1b[>4;0m", // reset xterm modifyOtherKeys
