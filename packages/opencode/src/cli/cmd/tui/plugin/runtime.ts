@@ -780,7 +780,7 @@ async function addExternalPluginEntries(state: RuntimeState, ready: PluginLoad[]
       meta: info,
       themes,
       plugin: entry.module.tui,
-      enabled: true,
+      enabled: entry.options?.enabled !== false,
     }
     if (!addPluginEntry(state, plugin)) {
       ok = false
